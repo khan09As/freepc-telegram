@@ -4,10 +4,13 @@ on:
   workflow_dispatch:
 
 jobs:
+
   bot:
+
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -24,4 +27,6 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: python bot.py
+
+        run: |
+          python bot.py
