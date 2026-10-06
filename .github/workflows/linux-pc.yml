@@ -1,0 +1,47 @@
+name: Free Linux PC
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: System
+        run: |
+          echo "===== FREEPC LINUX ====="
+          uname -a
+          echo "CPU:"
+          nproc
+          echo "RAM:"
+          free -h
+
+      - name: Install Desktop
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            xfce4 \
+            xfce4-terminal \
+            xvfb \
+            x11vnc \
+            chromium
+
+      - name: Start Linux Desktop
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 &
+          export DISPLAY=:99
+
+          xfce4-session &
+          sleep 10
+
+          chromium \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            https://chatgpt.com &
+
+          sleep 20
+
+          echo "================================"
+          echo "FREEPC DESKTOP TEST SUCCESSFUL"
+          echo "================================"
