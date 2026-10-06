@@ -1,14 +1,17 @@
 import os
 import time
+import requests
 import telebot
 from telebot import types
 
 TOKEN = os.environ["BOT_TOKEN"]
+GH_TOKEN = os.environ["GH_TOKEN"]
 
-bot = telebot.TeleBot(
-    TOKEN,
-    threaded=True
-)
+REPO = "khan09As/freepc-telegram"
+WORKFLOW = "linux-desktop.yml"
+
+bot = telebot.TeleBot(TOKEN, threaded=True)
+
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -35,14 +38,45 @@ def open_linux(call):
 
     bot.send_message(
         call.message.chat.id,
-        "🟡 Linux PC প্রস্তুত করা হচ্ছে..."
+        "🟡 Linux PC চালু করা হচ্ছে..."
     )
+
+    url = f"https://api.github.com/repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches"
+
+    headers = {
+        "Authorization": f"Bearer {GH_TOKEN}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    data = {
+        "ref": "main"
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=data,
+        timeout=30
+    )
+
+    if response.status_code == 204:
+        bot.send_message(
+            call.message.chat.id,
+            "✅ Linux PC চালু করার request পাঠানো হয়েছে!\n\n"
+            "কিছুক্ষণ পর Desktop URL পাওয়া যাবে।"
+        )
+    else:
+        bot.send_message(
+            call.message.chat.id,
+            f"❌ Linux PC চালু করা যায়নি.\n"
+            f"GitHub error: {response.status_code}"
+        )
 
 
 while True:
     try:
         print("🤖 FreePC Bot started...")
-        
+
         bot.infinity_polling(
             timeout=60,
             long_polling_timeout=60,
@@ -50,6 +84,5 @@ while True:
         )
 
     except Exception as e:
-        print("⚠️ Bot connection error:", e)
-        print("🔄 10 seconds পরে আবার চেষ্টা করবে...")
+        print("⚠️ Error:", e)
         time.sleep(10)
