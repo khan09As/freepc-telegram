@@ -17,9 +17,11 @@ jobs:
           python-version: "3.11"
 
       - name: Install
-        run: pip install pyTelegramBotAPI
+        run: |
+          pip install pyTelegramBotAPI requests
 
       - name: Start Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: python bot.py
