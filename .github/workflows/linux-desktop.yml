@@ -2,6 +2,11 @@ name: Free Linux Desktop
 
 on:
   workflow_dispatch:
+    inputs:
+      chat_id:
+        description: Telegram Chat ID
+        required: true
+        type: string
 
 jobs:
   desktop:
@@ -11,70 +16,76 @@ jobs:
       - name: Install Desktop
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            xfce4 \
-            xfce4-terminal \
-            xvfb \
-            x11vnc \
-            novnc \
-            websockify \
-            chromium
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-terminal dbus-x11 xvfb x11vnc novnc websockify chromium curl
 
       - name: Start Linux Desktop
         run: |
           export DISPLAY=:99
-
-          Xvfb :99 -screen 0 1280x720x24 &
+          Xvfb :99 -screen 0 1280x720x24 -ac &
           sleep 3
-
           dbus-run-session -- startxfce4 &
           sleep 10
 
-          x11vnc \
-            -display :99 \
-            -forever \
-            -shared \
-            -nopw \
-            -rfbport 5900 \
-            -listen 127.0.0.1 &
-
+          x11vnc -display :99 -forever -shared -nopw -rfbport 5900 -listen 127.0.0.1 &
           sleep 3
 
-          websockify \
-            --web=/usr/share/novnc/ \
-            6080 \
-            127.0.0.1:5900 &
-
+          websockify --web=/usr/share/novnc/ 6080 127.0.0.1:5900 &
           sleep 5
 
-          chromium \
-            --no-sandbox \
-            --disable-dev-shm-usage \
-            --start-maximized \
-            https://chatgpt.com &
+      - name: Open ChatGPT
+        run: |
+          export DISPLAY=:99
+          chromium --no-sandbox --disable-dev-shm-usage --start-maximized --disable-gpu https://chatgpt.com &
+          sleep 8
 
       - name: Install Cloudflare Tunnel
         run: |
-          curl -L \
-            -o cloudflared.deb \
-            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-
+          curl -L -o cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
 
-      - name: Create Desktop Link
+      - name: Start Cloudflare Tunnel
+        env:
+          CHAT_ID: ${{ inputs.chat_id }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
-          cloudflared tunnel \
-            --url http://127.0.0.1:6080 \
-            --no-autoupdate 2>&1 | tee tunnel.log &
+          cloudflared tunnel --url http://127.0.0.1:6080 --no-autoupdate > tunnel.log 2>&1 &
 
-          sleep 10
+          URL=""
+
+          for i in {1..30}
+          do
+            URL=$(grep -o 'https://[-a-zA-Z0-9]*\.trycloudflare\.com' tunnel.log | head -1 || true)
+
+            if [ -n "$URL" ]; then
+              break
+            fi
+
+            sleep 2
+          done
+
+          if [ -z "$URL" ]; then
+            echo "Cloudflare URL পাওয়া যায়নি।"
+            cat tunnel.log
+            exit 1
+          fi
 
           echo "======================================"
           echo "FREE LINUX DESKTOP URL"
+          echo "$URL"
           echo "======================================"
 
-          grep -o 'https://[-a-zA-Z0-9]*\.trycloudflare\.com' tunnel.log || true
+          DESKTOP_URL="${URL}/vnc.html?autoconnect=true&resize=scale"
 
-          echo "======================================"
+          echo "DESKTOP_URL=$DESKTOP_URL" >> "$GITHUB_ENV"
 
+          MESSAGE="🖥️ Free Linux PC প্রস্তুত! 🔗 Desktop খুলুন: $DESKTOP_URL | Chrome-এ link খুলে Connect চাপুন। ⚠️ এই PC temporary."
+
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${CHAT_ID}" --data-urlencode "text=${MESSAGE}"
+
+          echo "Desktop URL Telegram-এ পাঠানো হয়েছে।"
+
+      - name: Keep Linux PC Running
+        run: |
+          echo "FREE LINUX PC IS RUNNING"
+          echo "$DESKTOP_URL"
           sleep 21600
